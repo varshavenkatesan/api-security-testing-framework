@@ -1,0 +1,383 @@
+{
+	"info": {
+		"_postman_id": "f1a2b3c4-d5e6-4a7b-8c9d-0e1f2a3b4c5d",
+		"name": "OWASP API Top 10 - Juice Shop Edition",
+		"description": "A comprehensive Postman collection for testing the OWASP Juice Shop REST API against the OWASP API Security Top 10.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Setup & Authentication",
+			"item": [
+				{
+					"name": "Register User (Run once if needed)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"password\": \"{{user_password}}\",\n    \"passwordRepeat\": \"{{user_password}}\",\n    \"securityQuestion\": {\n        \"id\": 1,\n        \"question\": \"Your eldest siblings middle name?\"\n    },\n    \"securityAnswer\": \"test\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/Users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"Users"
+							]
+						},
+						"description": "Registers a new user. You only need to run this once."
+					},
+					"response": []
+				},
+				{
+					"name": "Login and Get Token/BasketID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.environment.set(\"authToken\", jsonData.authentication.token);",
+									"pm.environment.set(\"basketId\", jsonData.authentication.bid);",
+									"console.log(\"Auth Token and Basket ID set!\");"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"password\": \"{{user_password}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/rest/user/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"rest",
+								"user",
+								"login"
+							]
+						},
+						"description": "Logs in and saves the JWT token and basket ID (bid) to environment variables."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "API1:2023 - Broken Object Level Authorization (BOLA)",
+			"item": [
+				{
+					"name": "(FAIL) Try to access another user's basket",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Should be denied access to another user's basket (401 or 403)\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/rest/basket/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"rest",
+								"basket",
+								"1"
+							],
+							"description": "We are logged in, but trying to access Basket #1, which almost certainly does not belong to us. A secure API would block this."
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "API2:2023 - Broken Authentication",
+			"item": [
+				{
+					"name": "(FAIL) Access protected endpoint (Basket) with NO token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Request without token should be Unauthorized (401)\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/rest/basket/{{basketId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"rest",
+								"basket",
+								"{{basketId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "API5:2023 - Broken Function Level Authorization (BFLA)",
+			"item": [
+				{
+					"name": "(FAIL) Try to access admin-only metrics endpoint",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Regular user should be denied access to admin functions (401 or 403)\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/metric/",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"metric",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "API7:2023 - Server-Side Request Forgery (SSRF)",
+			"item": [
+				{
+					"name": "(FAIL) Try to make server request file from internal URL",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"API should validate URL and reject internal resources (400)\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/Feedbacks/",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"Feedbacks",
+								""
+							],
+							"query": [
+								{
+									"key": "captchaId",
+									"value": "0"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"captcha\": \"5\",\n    \"comment\": \"SSRF test\",\n    \"rating\": 5,\n    \"UserId\": \"{{basketId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "Juice Shop has a hidden SSRF flaw in its user ID handling for feedback. A request with a URL in the UserId field tricks the server."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "API8:2023 - Security Misconfiguration",
+			"item": [
+				{
+					"name": "(FAIL) Check for revealing X-Powered-By header",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Server should not reveal technology with 'X-Powered-By' header\", function () {",
+									"    pm.response.to.not.have.header('X-Powered-By');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/rest/products/search?q=test",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"rest",
+								"products",
+								"search"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "test"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "API9:2023 - Improper Inventory Management",
+			"item": [
+				{
+					"name": "(FAIL) Access exposed FTP folder",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Debug or unlisted endpoints like /ftp should be disabled (404)\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/ftp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"ftp"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "API10:2023 - Unsafe Consumption of APIs (Open Redirect)",
+			"item": [
+				{
+					"name": "(FAIL) Test for Open Redirect",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// IMPORTANT: In Postman settings, you must disable \"Automatically follow redirects\" for this test to work.",
+									"pm.test(\"API should not redirect to untrusted external sites\", function () {",
+									"    if (pm.response.code === 301 || pm.response.code === 302) {",
+									"        const locationHeader = pm.response.headers.get(\"Location\");",
+									"        pm.expect(locationHeader).to.not.include(\"google.com\", \"Vulnerable to Open Redirect!\");",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/redirect?to=https://google.com",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"redirect"
+							],
+							"query": [
+								{
+									"key": "to",
+									"value": "https://google.com"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
