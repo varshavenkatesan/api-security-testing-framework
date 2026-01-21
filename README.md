@@ -54,3 +54,4 @@ It uses a combination of Postman for test case development, Newman for command-l
 5.  **View the Results:**
     *   A new, timestamped HTML report will be generated inside the `/reports` directory.
     *   Open this file in a web browser to see the detailed test results.
+    *   Test commit on sample branch
